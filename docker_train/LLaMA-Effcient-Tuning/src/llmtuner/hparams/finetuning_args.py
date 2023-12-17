@@ -78,7 +78,7 @@ class FinetuningArguments:
         if self.num_layer_trainable > 0: # fine-tuning the last n layers if num_layer_trainable > 0
             trainable_layer_ids = [self.num_hidden_layers - k - 1 for k in range(self.num_layer_trainable)]
         else: # fine-tuning the first n layers if num_layer_trainable < 0
-            trainable_layer_ids = [k for k in range(-self.num_layer_trainable)]
+            trainable_layer_ids = list(range(-self.num_layer_trainable))
 
         self.trainable_layers = ["{:d}.{}".format(idx, self.name_module_trainable) for idx in trainable_layer_ids]
 

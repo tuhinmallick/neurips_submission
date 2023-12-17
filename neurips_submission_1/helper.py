@@ -28,13 +28,9 @@ class HFllama(BaseModel):
         self.cache_dir=cache_dir
         if load_8bit and load_4bit:
             raise Exception('load 8bit and 4bit cannot be true at the same time')
-        else:
-            self.load_4bit = load_4bit
-            self.load_8bit = load_8bit
-        if if_bf16:
-            self.dtype=torch.bfloat16
-        else:
-            self.dtype=torch.float32
+        self.load_4bit = load_4bit
+        self.load_8bit = load_8bit
+        self.dtype = torch.bfloat16 if if_bf16 else torch.float32
         print('Loading model from',self.model_path,'on',self.device)
         self.model=self.load_model(self.model_path,self.device)
         self.model.eval()
@@ -47,21 +43,7 @@ class HFllama(BaseModel):
 
     def load_model(self, path, device):
         config=AutoConfig.from_pretrained(path, trust_remote_code=True,cache_dir=self.cache_dir)
-        if device!='auto':
-            pattern = r'cuda:(\d+)'
-            match = re.match(pattern, device)
-            device_id = match.group(1)
-            return AutoModelForCausalLM.from_pretrained(
-                path,
-                config=config,
-                trust_remote_code=True,
-                cache_dir=self.cache_dir,
-                torch_dtype=self.dtype,
-                load_in_4bit=self.load_4bit,
-                load_in_8bit=self.load_8bit,
-                device_map={'':int(device_id)}
-            )
-        else:
+        if device == 'auto':
             return AutoModelForCausalLM.from_pretrained(
                 path,
                 config=config,
@@ -72,6 +54,18 @@ class HFllama(BaseModel):
                 load_in_8bit=self.load_8bit,
                 device_map='auto',
             )
+        match = re.match(r'cuda:(\d+)', device)
+        device_id = match.group(1)
+        return AutoModelForCausalLM.from_pretrained(
+            path,
+            config=config,
+            trust_remote_code=True,
+            cache_dir=self.cache_dir,
+            torch_dtype=self.dtype,
+            load_in_4bit=self.load_4bit,
+            load_in_8bit=self.load_8bit,
+            device_map={'':int(device_id)}
+        )
     
     def load_lora(self,lora_path):
         model = PeftModel.from_pretrained(
@@ -83,7 +77,7 @@ class HFllama(BaseModel):
     
     def load_tokenizer(self,path,cache_dir):
         tokenizer = AutoTokenizer.from_pretrained(path,trust_remote_code=True,cache_dir=cache_dir,use_fast=False)
-        if tokenizer.pad_token == None:
+        if tokenizer.pad_token is None:
             self.model.config.pad_token_id = 0
             self.model.config.bos_token_id = 1
             self.model.config.eos_token_id = 2
@@ -108,10 +102,7 @@ class Bloom(BaseModel):
         super().__init__(model_path, tokenizer_path, device)
         self.cache_dir=cache_dir
         self.cache_dir = cache_dir
-        if if_bf16:
-            self.dtype=torch.bfloat16
-        else:
-            self.dtype=torch.float32
+        self.dtype = torch.bfloat16 if if_bf16 else torch.float32
         print('Loading model from',self.model_path,'on',self.device)
         self.model=self.load_model(self.model_path,self.cache_dir,self.device)
         self.model.eval()
@@ -168,10 +159,7 @@ class Qwen(BaseModel):
         super().__init__(model_path, tokenizer_path, device)
         self.cache_dir=cache_dir
         self.cache_dir = cache_dir
-        if if_bf16:
-            self.dtype=torch.bfloat16
-        else:
-            self.dtype=torch.float32
+        self.dtype = torch.bfloat16 if if_bf16 else torch.float32
         print('Loading model from',self.model_path,'on',self.device)
         self.model=self.load_model(self.model_path,self.cache_dir,self.device)
         self.model.eval()
@@ -212,7 +200,7 @@ class Qwen(BaseModel):
 
     def load_tokenizer(self,path,cache_dir):
         tokenizer =  AutoTokenizer.from_pretrained(path,trust_remote_code=True,cache_dir=cache_dir)
-        if tokenizer.pad_token == None:
+        if tokenizer.pad_token is None:
             self.model.config.pad_token_id = 151643
             self.model.config.eos_token_id = 151643
             tokenizer.pad_token_id = 151643
