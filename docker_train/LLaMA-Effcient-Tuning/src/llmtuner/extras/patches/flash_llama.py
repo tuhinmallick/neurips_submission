@@ -87,36 +87,38 @@ class FlashRotaryEmbedding(torch.nn.Module):
 
     def _update_cos_sin_cache(self, seqlen, device=None, dtype=None):
         if (
-            seqlen > self._seq_len_cached or self._cos_cached.device != device
-            or self._cos_cached.dtype != dtype
-            or (self.training and self._cos_cached.is_inference())
+            seqlen <= self._seq_len_cached
+            and self._cos_cached.device == device
+            and self._cos_cached.dtype == dtype
+            and (not self.training or not self._cos_cached.is_inference())
         ):
-            self._seq_len_cached = seqlen
-            if self.pos_idx_in_fp32:
-                t = torch.arange(seqlen, device=device, dtype=torch.float32)
-                t /= self.scaling_factor
-                if self.inv_freq.dtype != torch.float32:
-                    inv_freq = self.inv_freq.to(torch.float32)
-                else:
-                    inv_freq = self.inv_freq
-            else:
-                t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
-                t /= self.scaling_factor
-                inv_freq = self.inv_freq
-            freqs = torch.outer(t, inv_freq)
-            if self.scale is None:
-                self._cos_cached = torch.cos(freqs).to(dtype)
-                self._sin_cached = torch.sin(freqs).to(dtype)
-            else:
-                power = (
-                    (torch.arange(seqlen, dtype=self.scale.dtype, device=self.scale.device) - seqlen // 2) / self.scale_base
-                )
-                scale = self.scale.to(device=power.device) ** power.unsqueeze(-1)
-                # We want the multiplication by scale to happen in fp32
-                self._cos_cached = (torch.cos(freqs) * scale).to(dtype)
-                self._sin_cached = (torch.sin(freqs) * scale).to(dtype)
-                self._cos_k_cached = (torch.cos(freqs) / scale).to(dtype)
-                self._sin_k_cached = (torch.sin(freqs) / scale).to(dtype)
+            return
+        self._seq_len_cached = seqlen
+        if self.pos_idx_in_fp32:
+            t = torch.arange(seqlen, device=device, dtype=torch.float32)
+            inv_freq = (
+                self.inv_freq.to(torch.float32)
+                if self.inv_freq.dtype != torch.float32
+                else self.inv_freq
+            )
+        else:
+            t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
+            inv_freq = self.inv_freq
+        t /= self.scaling_factor
+        freqs = torch.outer(t, inv_freq)
+        if self.scale is None:
+            self._cos_cached = torch.cos(freqs).to(dtype)
+            self._sin_cached = torch.sin(freqs).to(dtype)
+        else:
+            power = (
+                (torch.arange(seqlen, dtype=self.scale.dtype, device=self.scale.device) - seqlen // 2) / self.scale_base
+            )
+            scale = self.scale.to(device=power.device) ** power.unsqueeze(-1)
+            # We want the multiplication by scale to happen in fp32
+            self._cos_cached = (torch.cos(freqs) * scale).to(dtype)
+            self._sin_cached = (torch.sin(freqs) * scale).to(dtype)
+            self._cos_k_cached = (torch.cos(freqs) / scale).to(dtype)
+            self._sin_k_cached = (torch.sin(freqs) / scale).to(dtype)
 
     def forward(self, q: torch.Tensor, k: torch.Tensor, seqlen_offset: int = 0) -> Tuple[torch.Tensor, torch.Tensor]:
         r"""
@@ -255,8 +257,6 @@ class LlamaAttention(torch.nn.Module):
 
             attn_output = attn_outputs[0] if output_attentions else attn_outputs
             attn_output = pad_input(attn_output, indices_q, bsz, q_len).reshape(bsz, q_len, h_size)
-            attn_weights = attn_outputs[2] if output_attentions else None
-
         else:
             # no padding tokens, more efficient
             attn_outputs = flash_attn_kvpacked_func(
@@ -265,7 +265,7 @@ class LlamaAttention(torch.nn.Module):
             )
             attn_output = attn_outputs[0] if output_attentions else attn_outputs
             attn_output = attn_output.reshape(bsz, q_len, h_size)
-            attn_weights = attn_outputs[2] if output_attentions else None
+        attn_weights = attn_outputs[2] if output_attentions else None
 
         attn_output = self.o_proj(attn_output)
 
