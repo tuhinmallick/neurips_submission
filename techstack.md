@@ -48,7 +48,7 @@ Full tech stack [here](/techstack.md)
 # Tech Stack File
 ![](https://img.stackshare.io/repo.svg "repo") [tuhinmallick/neurips_submission](https://github.com/tuhinmallick/neurips_submission)![](https://img.stackshare.io/public_badge.svg "public")
 <br/><br/>
-|93<br/>Tools used|02/19/24 <br/>Report generated|
+|93<br/>Tools used|02/29/24 <br/>Report generated|
 |------|------|
 </div>
 
